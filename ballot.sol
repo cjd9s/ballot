@@ -1,62 +1,62 @@
-/**
+/*
+ * SPDX-License-Identifier: UNLICENSED
  * @file ballot.sol
- * @author Jackson Ng <jackson@jacksonng.org>
- * @date created 22nd Apr 2019
- * @date last modified 30th Apr 2019
+ * @author Craig DuBose
+ * @date created 3rd June 2020
+ * @date last modified 23rd June 2020
  */
 
-pragma solidity ^0.5.0;
+pragma solidity ^0.6.0;
 
-contract Ballot {
+contract ITSligoElection {
 
-    struct vote{
-        address voterAddress;
-        bool choice;
+    struct votes{
+        uint vote1;
+        uint vote2;
     }
-    
-    struct voter{
-        string voterName;
-        bool voted;
+
+    struct voterInformation{
+        bool voterRegistered;
+        bool voterVoted;
+        votes choices;
     }
+
+    mapping(address => voterInformation) voterRegister;
 
     uint private countResult = 0;
     uint public finalResult = 0;
     uint public totalVoter = 0;
     uint public totalVote = 0;
-    address public ballotOfficialAddress;      
+    address public ballotOfficialAddress;
     string public ballotOfficialName;
     string public proposal;
-    
-    mapping(uint => vote) private votes;
-    mapping(address => voter) public voterRegister;
-    
+
     enum State { Created, Voting, Ended }
 	State public state;
-	
+
 	//creates a new ballot contract
-	constructor(
-        string memory _ballotOfficialName,
-        string memory _proposal) public {
+	constructor(string memory _ballotOfficialName,  string memory _proposal) public
+    {
         ballotOfficialAddress = msg.sender;
         ballotOfficialName = _ballotOfficialName;
         proposal = _proposal;
-        
+
         state = State.Created;
     }
-    
-    
+
+
 	modifier condition(bool _condition) {
-		require(_condition);
+		require(_condition, "condition not met");
 		_;
 	}
 
 	modifier onlyOfficial() {
-		require(msg.sender ==ballotOfficialAddress);
+		require(msg.sender == ballotOfficialAddress, "not an official");
 		_;
 	}
 
 	modifier inState(State _state) {
-		require(state == _state);
+		require(state == _state, "election not in appropriate state");
 		_;
 	}
 
@@ -64,17 +64,15 @@ contract Ballot {
     event voteStarted();
     event voteEnded(uint finalResult);
     event voteDone(address voter);
-    
+
     //add voter
-    function addVoter(address _voterAddress, string memory _voterName)
+    function addVoter(address _voterAddress)
         public
         inState(State.Created)
         onlyOfficial
     {
-        voter memory v;
-        v.voterName = _voterName;
-        v.voted = false;
-        voterRegister[_voterAddress] = v;
+        voterRegister[_voterAddress].voterRegistered = true;
+        voterRegister[_voterAddress].voterVoted = false;
         totalVoter++;
         emit voterAdded(_voterAddress);
     }
@@ -85,35 +83,38 @@ contract Ballot {
         inState(State.Created)
         onlyOfficial
     {
-        state = State.Voting;     
+        state = State.Voting;
         emit voteStarted();
     }
 
     //voters vote by indicating their choice (true/false)
-    function doVote(bool _choice)
+    function doVote(uint _vote1, uint _vote2)
         public
         inState(State.Voting)
         returns (bool voted)
     {
         bool found = false;
-        
-        if (bytes(voterRegister[msg.sender].voterName).length != 0 
-        && !voterRegister[msg.sender].voted){
-            voterRegister[msg.sender].voted = true;
-            vote memory v;
-            v.voterAddress = msg.sender;
-            v.choice = _choice;
-            if (_choice){
-                countResult++; //counting on the go
+
+        if (voterRegister[msg.sender].voterRegistered && !voterRegister[msg.sender].voterVoted)
+        {
+            votes memory ballot;
+            voterRegister[msg.sender].voterVoted = true;
+            ballot.vote1 = _vote1;
+            ballot.vote2 = _vote2;
+            if (ballot.vote1 != 0 && ballot.vote1 > 0){
+                countResult++;//counting on the go
             }
-            votes[totalVote] = v;
+            if (ballot.vote2 != 0 && ballot.vote1 > 0){
+                countResult++;
+            }
+            voterRegister[msg.sender].choices = ballot;
             totalVote++;
             found = true;
         }
         emit voteDone(msg.sender);
         return found;
     }
-    
+
     //end votes
     function endVote()
         public
